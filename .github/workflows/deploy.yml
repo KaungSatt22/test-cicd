@@ -45,22 +45,55 @@ jobs:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_KEY }}" > ~/.ssh/id_rsa
+          # Write SSH key and ensure proper line endings
+          printf '%s\n' "${{ secrets.EC2_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          chmod 700 ~/.ssh
+
+          # Verify key format
+          echo "Checking SSH key format..."
+          head -1 ~/.ssh/id_rsa
+          echo "Key file size: $(wc -c < ~/.ssh/id_rsa) bytes"
+
+          # Test SSH key format
+          ssh-keygen -l -f ~/.ssh/id_rsa || echo "Key format validation failed"
+
+          # Add host to known_hosts with error handling
+          echo "Adding host to known_hosts..."
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || {
+            echo "ssh-keyscan failed, skipping host key verification..."
+          }
+
+          # Test SSH connection
+          echo "Testing SSH connection..."
+          ssh -i ~/.ssh/id_rsa -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o BatchMode=yes \
+            ubuntu@${{ secrets.EC2_HOST }} "echo 'SSH connection successful'" || {
+            echo "SSH test failed - this might be normal if the instance is not ready"
+          }
 
       # 7. Copy docker-compose.yml to EC2 (Alternative method)
       - name: Copy docker-compose.yml to EC2
         run: |
-          scp -i ~/.ssh/id_rsa -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 \
+          # Create target directory first
+          ssh -i ~/.ssh/id_rsa -o ConnectTimeout=30 -o StrictHostKeyChecking=no \
+            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "mkdir -p ~/myapp"
+
+          # Copy file with verbose output
+          scp -i ~/.ssh/id_rsa -o ConnectTimeout=30 -o StrictHostKeyChecking=no -v \
             docker-compose.yml ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/myapp/
 
       # 8. SSH to EC2 and deploy
       - name: Deploy to EC2
         run: |
-          ssh -i ~/.ssh/id_rsa -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 \
+          ssh -i ~/.ssh/id_rsa -o ConnectTimeout=30 -o StrictHostKeyChecking=no \
             ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
             cd ~/myapp
+            echo "Current directory: $(pwd)"
+            echo "Files in directory:"
+            ls -la
+            echo "Pulling latest images..."
             docker-compose pull
+            echo "Starting services..."
             docker-compose up -d
+            echo "Deployment completed!"
           EOF
