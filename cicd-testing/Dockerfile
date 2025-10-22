@@ -16,7 +16,7 @@ WORKDIR /usr/src/app
 RUN npm install -g serve
 
 # Copy build output
-COPY --from=build /usr/src/app/build ./build
+COPY --from=build /usr/src/app/dist ./dist
 
 EXPOSE 80
-CMD ["serve", "-s", "build", "-l", "80"]
+CMD ["serve", "-s", "dist", "-l", "80"]
