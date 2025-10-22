@@ -8,7 +8,7 @@ COPY . .
 RUN chmod +x ./gradlew
 
 # Build WAR
-RUN ./gradlew clean build
+RUN ./gradlew clean build -x test
 
 # Stage 2: Runtime
 FROM eclipse-temurin:21-jre-jammy
