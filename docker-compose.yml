@@ -1,0 +1,47 @@
+version: "3.8"
+
+services:
+  database:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    container_name: mssql
+    environment:
+      SA_PASSWORD: "Root@1234k@ung!"
+      ACCEPT_EULA: "Y"
+    ports:
+      - "1444:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+    networks:
+      - app-net
+
+  backend:
+    image: heaven22/spring-boot-app:latest
+    build: ./backend
+    container_name: springboot-app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:sqlserver://database:1433;databaseName=test;encrypt=false
+      SPRING_DATASOURCE_USERNAME: sa
+      SPRING_DATASOURCE_PASSWORD: Root@1234k@ung!
+    depends_on:
+      - database
+    networks:
+      - app-net
+
+  frontend:
+    image: heaven22/react-app:latest
+    build: ./frontend
+    container_name: react-app
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - app-net
+
+volumes:
+  mssql_data:
+
+networks:
+  app-net:
