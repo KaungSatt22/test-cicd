@@ -25,14 +25,14 @@ jobs:
       - name: Build and push backend
         run: |
           IMAGE_NAME=heaven22/spring-boot-app:latest
-          docker build -t $IMAGE_NAME ./backend
+          docker build -t $IMAGE_NAME ./demo
           docker push $IMAGE_NAME
 
       # 4. Build and push frontend
       - name: Build and push frontend
         run: |
           IMAGE_NAME=heaven22/react-app:latest
-          docker build -t $IMAGE_NAME ./frontend
+          docker build -t $IMAGE_NAME ./cicd-testing
           docker push $IMAGE_NAME
 
       # 5. Copy docker-compose.yml to EC2
