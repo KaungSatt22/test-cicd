@@ -7,6 +7,7 @@ const App = () => {
     email: "",
     age: "",
   });
+  console.log("hello");
 
   const [response, setResponse] = useState(null);
   const [error, setError] = useState(null);
