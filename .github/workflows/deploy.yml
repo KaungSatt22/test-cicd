@@ -35,65 +35,24 @@ jobs:
           docker build -t $IMAGE_NAME ./cicd-testing
           docker push $IMAGE_NAME
 
-      # 5. Test connectivity to EC2
-      - name: Test EC2 connectivity
-        run: |
-          echo "Testing connectivity to EC2 instance..."
-          timeout 10 bash -c "</dev/tcp/${{ secrets.EC2_HOST }}/22" && echo "Port 22 is open" || echo "Port 22 is closed or unreachable"
-
-      # 6. Setup SSH key
-      - name: Setup SSH key
-        run: |
-          mkdir -p ~/.ssh
-          # Write SSH key and ensure proper line endings
-          printf '%s\n' "${{ secrets.EC2_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          chmod 700 ~/.ssh
-
-          # Verify key format
-          echo "Checking SSH key format..."
-          head -1 ~/.ssh/id_rsa
-          echo "Key file size: $(wc -c < ~/.ssh/id_rsa) bytes"
-
-          # Test SSH key format
-          ssh-keygen -l -f ~/.ssh/id_rsa || echo "Key format validation failed"
-
-          # Add host to known_hosts with error handling
-          echo "Adding host to known_hosts..."
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || {
-            echo "ssh-keyscan failed, skipping host key verification..."
-          }
-
-          # Test SSH connection
-          echo "Testing SSH connection..."
-          ssh -i ~/.ssh/id_rsa -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o BatchMode=yes \
-            ubuntu@${{ secrets.EC2_HOST }} "echo 'SSH connection successful'" || {
-            echo "SSH test failed - this might be normal if the instance is not ready"
-          }
-
-      # 7. Copy docker-compose.yml to EC2 (Alternative method)
+      # 5. Copy docker-compose.yml to EC2
       - name: Copy docker-compose.yml to EC2
-        run: |
-          # Create target directory first
-          ssh -i ~/.ssh/id_rsa -o ConnectTimeout=30 -o StrictHostKeyChecking=no \
-            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "mkdir -p ~/myapp"
+        uses: appleboy/scp-action@v0.1.6
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          source: "docker-compose.yml"
+          target: "~/myapp/"
 
-          # Copy file with verbose output
-          scp -i ~/.ssh/id_rsa -o ConnectTimeout=30 -o StrictHostKeyChecking=no -v \
-            docker-compose.yml ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/myapp/
-
-      # 8. SSH to EC2 and deploy
+      # 6. SSH to EC2 and deploy
       - name: Deploy to EC2
-        run: |
-          ssh -i ~/.ssh/id_rsa -o ConnectTimeout=30 -o StrictHostKeyChecking=no \
-            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          script: |
             cd ~/myapp
-            echo "Current directory: $(pwd)"
-            echo "Files in directory:"
-            ls -la
-            echo "Pulling latest images..."
             docker-compose pull
-            echo "Starting services..."
             docker-compose up -d
-            echo "Deployment completed!"
-          EOF
